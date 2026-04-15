@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Už jsi zaplatil školné?</title>
+    <style>
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #000; color: white; 
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #main-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            width: 100%;
+        }
+
+        canvas { 
+            display: block; 
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.3); 
+            border: 2px solid #222;
+            max-width: 95vw;
+        }
+        
+        #ui { 
+            position: absolute; top: 15px; left: 15px; 
+            background: rgba(0,0,0,0.85); padding: 10px 20px; 
+            border-radius: 12px; border: 1px solid #444; z-index: 10; 
+        }
+        #player-icon { width: 35px; height: 35px; border-radius: 50%; border: 2px solid #0f0; vertical-align: middle; margin-right: 12px; object-fit: cover; }
+
+        .overlay { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.96); backdrop-filter: blur(12px); 
+            z-index: 100; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; text-align: center; padding: 20px; 
+        }
+        
+        .btn { 
+            padding: 25px 70px; font-size: 2.5em; font-weight: bold; 
+            color: white; background: #00aa00; border: none; border-radius: 60px; 
+            cursor: pointer; box-shadow: 0 0 25px rgba(0, 255, 0, 0.4); 
+            transition: 0.2s; text-transform: uppercase; 
+        }
+        .btn:hover { background: #00cc00; transform: scale(1.08); }
+
+        #enemy-list { display: flex; gap: 30px; margin: 30px 0; flex-wrap: wrap; justify-content: center; max-width: 95vw; }
+        .enemy-card { display: flex; flex-direction: column; align-items: center; width: 180px; }
+        .enemy-card img { width: 150px; height: 150px; border: 6px solid #f00; border-radius: 50%; object-fit: cover; margin-bottom: 15px; }
+        .enemy-card span { font-weight: bold; color: #ff4444; font-size: 1.5em; text-transform: uppercase; }
+
+        h2.tutorial-title { font-size: 4em; color: #ffaa00; margin-bottom: 10px; text-transform: uppercase; }
+        h1.main-title { font-size: 5em; margin-bottom: 20px; color: #fff; animation: mainPulse 4s infinite ease-in-out; text-align: center; }
+        .joke-subtitle { font-size: 1.8em; color: #ff4444; margin-bottom: 40px; font-weight: bold; animation: subPulse 3s infinite ease-in-out; }
+
+        @keyframes mainPulse {
+            0%, 100% { transform: scale(1); text-shadow: 0 0 20px rgba(255, 0, 0, 0.4); }
+            50% { transform: scale(1.03); text-shadow: 0 0 50px rgba(255, 0, 0, 0.8); }
+        }
+        @keyframes subPulse {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+
+        #joystick-zone { width: 100%; height: 220px; display: flex; justify-content: center; align-items: center; padding: 10px 0; }
+        #joystick-container { width: 180px; height: 180px; background: rgba(255, 255, 255, 0.1); border: 3px solid rgba(255, 255, 255, 0.3); border-radius: 50%; position: relative; touch-action: none; }
+        #joystick-knob { position: absolute; top: 50%; left: 50%; width: 80px; height: 80px; background: rgba(0, 255, 0, 0.5); border-radius: 50%; transform: translate(-50%, -50%); box-shadow: 0 0 20px rgba(0, 255, 0, 0.4); pointer-events: none; }
+
+        #gameover-photo { max-height: 45vh; border: 10px solid white; border-radius: 50%; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div style="font-size: 1.8em; font-weight: bold;">Skóre: <span id="score">0</span></div>
+        <div style="color: #0f0; font-size: 1.1em;">
+            <img id="player-icon" src="hrac1.png">
+            Hráč: <span>Ty</span>
+        </div>
+    </div>
+
+    <div id="main-wrapper">
+        <canvas id="gameCanvas"></canvas>
+        <div id="joystick-zone">
+            <div id="joystick-container">
+                <div id="joystick-knob"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="start-menu" class="overlay">
+        <h1 class="main-title">Už jsi zaplatil školné?</h1>
+        <p class="joke-subtitle">Obtížnost: TĚŽKÁ</p>
+        <button class="btn" onclick="showTutorial()">Začít hrát</button>
+    </div>
+
+    <div id="tutorial-menu" class="overlay" style="display: none;">
+        <h2 class="tutorial-title">Pozor na ně!</h2>
+        <div id="enemy-list"></div>
+        <button class="btn" onclick="startGame()">Rozumím, HRÁT!</button>
+    </div>
+
+    <div id="gameover" class="overlay" style="display: none;" onclick="location.reload()">
+        <img id="gameover-photo" src="">
+        <div id="gameover-text" style="font-size: 2.5em;">
+            <span id="vrah-jmeno" style="color:#ffaa00;">...</span><br>
+            <span id="gender-text">DOSTALA JSEM TĚ!</span><br>
+            <span id="final-subtext" style="color: red; font-weight: bold;">MUSÍŠ ZAPLATIT ŠKOLNÝ</span>
+        </div>
+    </div>
+
+    <script>
+        const hracSrc = 'hrac1.png';
+        const infoUtocniku = {
+            'duch1.jpg': { jmeno: 'BOBKOVÁ', gender: 'F' },
+            'duch2.jpg': { jmeno: 'TERČ', gender: 'M' },
+            'duch3.jpg': { jmeno: 'VRBOVÁ', gender: 'F' },
+            'duch4.jpg': { jmeno: 'VLADANA', gender: 'F' }
+        };
+        const seznamUtocniku = Object.keys(infoUtocniku);
+        
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        let tileSize, score = 0, isGameOver = false, isStarted = false, lastTime = 0, totalDots = 0;
+        const moveInterval = 170;
+
+        const mazeMap = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,0,1,1,1,1,1,0,1,0,1,1,0,1],
+            [1,1,1,1,0,1,1,1,2,1,2,1,1,1,0,1,1,1,1],
+            [1,1,1,1,0,1,2,2,2,2,2,2,2,1,0,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,1],
+            [1,0,1,1,0,1,1,1,0,1,0,1,1,1,0,1,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        let maze = JSON.parse(JSON.stringify(mazeMap));
+        maze.forEach(row => row.forEach(cell => { if(cell === 0) totalDots++; }));
+
+        const hracImg = new Image(); hracImg.src = hracSrc;
+        let ghosts = seznamUtocniku.map((src, i) => {
+            let img = new Image(); img.src = src;
+            let startX = (i % 2 === 0) ? 1 : 17;
+            let startY = (i < 2) ? 1 : 9;
+            return { x: startX, y: startY, dir: 'L', img: img, src: src, jmeno: infoUtocniku[src].jmeno, gender: infoUtocniku[src].gender };
+        });
+
+        let player = { x: 9, y: 7, dir: null, nextDir: null };
+
+        function showTutorial() {
+            document.getElementById("start-menu").style.display = "none";
+            const enemyList = document.getElementById("enemy-list");
+            enemyList.innerHTML = ""; 
+            seznamUtocniku.forEach(src => {
+                const card = document.createElement("div");
+                card.className = "enemy-card";
+                card.innerHTML = `<img src="${src}"><span>${infoUtocniku[src].jmeno}</span>`;
+                enemyList.appendChild(card);
+            });
+            document.getElementById("tutorial-menu").style.display = "flex";
+        }
+
+        function startGame() {
+            document.getElementById("tutorial-menu").style.display = "none";
+            isStarted = true;
+            resize();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function resize() {
+            const ww = window.innerWidth;
+            const wh = window.innerHeight;
+            tileSize = Math.floor(Math.min(ww / 20, (wh - 280) / 12));
+            canvas.width = 19 * tileSize; canvas.height = 11 * tileSize;
+            draw();
+        }
+        window.onresize = resize; resize();
+
+        document.onkeydown = (e) => {
+            if(e.key === "ArrowLeft") player.nextDir = "L";
+            if(e.key === "ArrowRight") player.nextDir = "R";
+            if(e.key === "ArrowUp") player.nextDir = "U";
+            if(e.key === "ArrowDown") player.nextDir = "D";
+            if(e.key.startsWith("Arrow")) e.preventDefault();
+        };
+
+        function gameLoop(timestamp) {
+            if (!isStarted || isGameOver) return;
+            if (timestamp - lastTime >= moveInterval) {
+                update();
+                lastTime = timestamp;
+            }
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update() {
+            // Pohyb hráče
+            if (player.nextDir) {
+                let tx = player.x, ty = player.y;
+                if(player.nextDir === "L") tx--; if(player.nextDir === "R") tx++; if(player.nextDir === "U") ty--; if(player.nextDir === "D") ty++;
+                if(maze[ty] && maze[ty][tx] !== 1) { player.dir = player.nextDir; player.nextDir = null; }
+            }
+            let nx = player.x, ny = player.y;
+            if(player.dir === "L") nx--; if(player.dir === "R") nx++; if(player.dir === "U") ny--; if(player.dir === "D") ny++;
+            if(maze[ny] && maze[ny][nx] !== 1) { player.x = nx; player.y = ny; }
+            
+            if(maze[player.y] && maze[player.y][player.x] === 0) { 
+                maze[player.y][player.x] = 2; score += 10; document.getElementById("score").innerText = score;
+            }
+
+            // Pohyb duchů
+            ghosts.forEach(g => {
+                // Náhodná změna směru občas
+                if(Math.random() < 0.2) {
+                    g.dir = ["L","R","U","D"][Math.floor(Math.random()*4)];
+                }
+
+                let gnx = g.x, gny = g.y;
+                if(g.dir === "L") gnx--; else if(g.dir === "R") gnx++; else if(g.dir === "U") gny--; else if(g.dir === "D") gny++;
+
+                // Pokud narazí do zdi, změní směr hned
+                if(maze[gny] && maze[gny][gnx] !== 1) {
+                    g.x = gnx;
+                    g.y = gny;
+                } else {
+                    g.dir = ["L","R","U","D"][Math.floor(Math.random()*4)];
+                }
+
+                // Kolize s hráčem
+                if(player.x === g.x && player.y === g.y) {
+                    isGameOver = true;
+                    document.getElementById("gameover-photo").src = g.src;
+                    document.getElementById("vrah-jmeno").innerText = g.jmeno;
+                    document.getElementById("gender-text").innerText = (g.gender === 'F') ? "DOSTALA JSEM TĚ!" : "DOSTAL JSEM TĚ!";
+                    document.getElementById("gameover").style.display = "flex";
+                }
+            });
+        }
+
+        function drawCircularImage(img, x, y, size, borderColor) {
+            ctx.save();
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2); ctx.clip();
+            ctx.drawImage(img, x, y, size, size);
+            ctx.restore();
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 - 1, 0, Math.PI * 2);
+            ctx.strokeStyle = borderColor; ctx.lineWidth = 2; ctx.stroke();
+        }
+
+        function draw() {
+            ctx.fillStyle = "black"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            for(let r=0; r<maze.length; r++) {
+                for(let c=0; c<maze[r].length; c++) {
+                    let x = c*tileSize, y = r*tileSize;
+                    if(maze[r][c] === 1) { 
+                        ctx.fillStyle = "#111"; ctx.fillRect(x, y, tileSize, tileSize); 
+                        ctx.strokeStyle = "#222"; ctx.strokeRect(x,y,tileSize,tileSize);
+                    }
+                    else if(maze[r][c] === 0) { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x+tileSize/2, y+tileSize/2, tileSize*0.1, 0, 7); ctx.fill(); }
+                }
+            }
+            if(hracImg.complete) drawCircularImage(hracImg, player.x*tileSize+2, player.y*tileSize+2, tileSize-4, "#0f0");
+            ghosts.forEach(g => { if(g.img.complete) drawCircularImage(g.img, g.x*tileSize+2, g.y*tileSize+2, tileSize-4, "#f00"); });
+        }
+
+        const joystick = document.getElementById('joystick-container');
+        const knob = document.getElementById('joystick-knob');
+
+        const handleInput = (e) => {
+            if (e.cancelable) e.preventDefault();
+            const input = e.touches ? e.touches[0] : e;
+            const rect = joystick.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            let dx = input.clientX - cx;
+            let dy = input.clientY - cy;
+            const dist = Math.min(rect.width / 2 - 5, Math.sqrt(dx*dx + dy*dy));
+            const angle = Math.atan2(dy, dx);
+            knob.style.transform = `translate(calc(-50% + ${Math.cos(angle)*dist}px), calc(-50% + ${Math.sin(angle)*dist}px))`;
+
+            if (dist > 20) {
+                if (Math.abs(dx) > Math.abs(dy)) player.nextDir = dx > 0 ? "R" : "L";
+                else player.nextDir = dy > 0 ? "D" : "U";
+            }
+        };
+
+        const resetJoystick = () => { knob.style.transform = `translate(-50%, -50%)`; };
+        joystick.addEventListener('touchstart', handleInput);
+        joystick.addEventListener('touchmove', handleInput);
+        joystick.addEventListener('touchend', resetJoystick);
+        joystick.addEventListener('mousedown', (e) => {
+            handleInput(e);
+            const move = (me) => handleInput(me);
+            const up = () => { window.removeEventListener('mousemove', move); resetJoystick(); };
+            window.addEventListener('mousemove', move);
+            window.addEventListener('mouseup', up, {once:true});
+        });
+    </script>
+</body>
+</html>
